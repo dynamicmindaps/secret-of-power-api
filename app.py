@@ -1,10 +1,12 @@
 from flask import Flask, request, jsonify
 from openai import OpenAI
-import os
+from flask_cors import CORS
 
 app = Flask(__name__)
+# Consenti richieste solo dal tuo dominio
+CORS(app, resources={r"/api/*": {"origins": "https://www.dynamicmind.info"}})
 
-# Client OpenAI (userà la variabile d'ambiente OPENAI_API_KEY)
+# Client OpenAI: usa la variabile d'ambiente OPENAI_API_KEY
 client = OpenAI()
 
 SYSTEM_PROMPT = """
@@ -64,6 +66,7 @@ def interpretation():
         return jsonify({"interpretation": text})
 
     except Exception as e:
+        # Log su console per debug
         print("Errore OpenAI:", e)
         return jsonify({
             "interpretation": (
@@ -72,6 +75,6 @@ def interpretation():
             )
         }), 200
 
-# Render lancerà questo con gunicorn app:app
+# Punto di ingresso per gunicorn (app:app)
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
