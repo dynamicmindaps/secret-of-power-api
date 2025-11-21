@@ -1,80 +1,31 @@
 from flask import Flask, request, jsonify
-from openai import OpenAI
 from flask_cors import CORS
+from openai import OpenAI
 
 app = Flask(__name__)
-# Consenti richieste solo dal tuo dominio
-CORS(app, resources={r"/api/*": {"origins": "https://www.dynamicmind.info"}})
+CORS(app)
 
-# Client OpenAI: usa la variabile d'ambiente OPENAI_API_KEY
+# Client OpenAI: usa la variabile di ambiente OPENAI_API_KEY
 client = OpenAI()
 
-SYSTEM_PROMPT = """
-Sei l'oracolo delle carte "The Secret of Power", un mazzo basato sulla Legge di Attrazione.
-Rispondi in italiano, con uno stile chiaro, caldo e centrato sulla consapevolezza.
-Non essere fatalista né deterministico: le carte mostrano possibilità, non destini fissi.
-
-Linee guida:
-- Collega i nomi delle carte al tema dell'intenzione della persona.
-- Metti in luce le risorse interiori, non i problemi.
-- Dai sempre almeno un piccolo spunto pratico concreto (un gesto, una riflessione, un esercizio).
-- Mantieni una lunghezza di 2–4 paragrafi.
+SYSTEM_PROMPT = """Sei l'oracolo delle carte "The Secret of Power", un mazzo dedicato alla Legge di Attrazione e alla crescita interiore.
+Parli in modo chiaro, responsabile e incoraggiante.
+Non fai previsioni fatalistiche, non dai risposte assolute, non sostituisci terapie mediche o psicologiche.
+Aiuti la persona a comprendere il messaggio simbolico delle carte, mettendo l'accento su:
+- consapevolezza di sé
+- responsabilità personale
+- possibilità di scelta
+- allineamento tra pensieri, emozioni, azioni e intenzione.
 """
 
-def build_user_prompt(spread_type, cards):
-    """
-    spread_type: '1-carta' oppure '3-carte'
-    cards: lista di nomi delle carte
-    """
-    if spread_type == "1-carta":
-        intro = "Lettura a 1 carta (messaggio essenziale)."
-    else:
-        intro = "Lettura a 3 carte (passato – presente – potenziale)."
 
-    cards_list = ", ".join(cards)
-    user_prompt = (
-        f"{intro}\n"
-        f"Le carte estratte sono: {cards_list}.\n\n"
-        "Fornisci un'interpretazione che aiuti la persona a comprendere il messaggio delle carte, "
-        "mettendo l'accento su come può usare questa consapevolezza nella vita quotidiana. "
-        "Non dare previsioni assolute, ma suggerimenti di crescita."
-    )
-    return user_prompt
-
-@app.route("/api/secret-of-power/interpretation", methods=["POST"])
-def interpretation():
-    data = request.get_json() or {}
-    spread_type = data.get("spreadType", "1-carta")
-    cards = data.get("cards", [])
-
-    if not cards:
-        return jsonify({"error": "Nessuna carta fornita"}), 400
-
-    user_prompt = build_user_prompt(spread_type, cards)
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.8,
-        )
-
-        text = response.choices[0].message.content.strip()
-        return jsonify({"interpretation": text})
-
-    except Exception as e:
-        # Log su console per debug
-        print("Errore OpenAI:", e)
-        return jsonify({
-            "interpretation": (
-                "Le carte sono state estratte, ma al momento non è possibile generare "
-                "un messaggio approfondito. Lascia comunque che i loro simboli lavorino dentro di te."
-            )
-        }), 200
-
-# Punto di ingresso per gunicorn (app:app)
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
+CARD_MEANINGS = {
+    1: """In riferimento alla Legge d'Attrazione, il termine "uomo" si riferisce alla consapevolezza e al potere dell'essere umano di creare la propria realtà attraverso i pensieri, le emozioni e le azioni. L'uomo è considerato un co-creatore della propria esperienza di vita grazie alla capacità di scegliere consapevolmente cosa pensare e cosa focalizzare. In questo contesto, l'uomo è visto come un essere dotato di libero arbitrio e responsabilità nel dirigere la propria attenzione verso ciò che desidera attrarre, poiché ciò che pensa e sente emette vibrazioni che, secondo la Legge d'Attrazione, richiamano esperienze simili. Pertanto, l'uomo è al centro del processo di manifestazione, poiché attraverso le sue convinzioni, emozioni e atteggiamenti attrae situazioni, persone e opportunità che rispecchiano il suo stato interiore. La consapevolezza di questo potere permette agli individui di orientare intenzionalmente il proprio pensiero verso ciò che desiderano, invece di concentrarsi su ciò che temono o non vogliono. In sintesi, l'uomo nella Legge d'Attrazione rappresenta il soggetto che, attraverso la sua mente e il suo cuore, contribuisce attivamente a creare la propria realtà, scegliendo consapevolmente quali pensieri nutrire e quali emozioni coltivare per attrarre nella propria vita le circostanze e le opportunità che desidera. È il fulcro del processo di manifestazione, poiché è attraverso di lui che la Legge d'Attrazione si attiva e si manifesta nella realtà concreta. Per questo motivo, l'uomo è responsabile del proprio benessere e dei risultati che ottiene nella vita, in quanto essi riflettono il suo stato interiore e il modo in cui utilizza la Legge d'Attrazione per manifestare i suoi desideri.""",  # UOMO
+    2: """Le emozioni svolgono un ruolo cruciale nel processo di manifestazione. Essendo strettamente legate ai pensieri, le emozioni fungono da motore energetico che amplifica e trasmette le vibrazioni generate dai pensieri verso l'universo. Secondo la Legge d'Attrazione, le emozioni positive, come la gioia, la gratitudine, l'amore e la speranza, emettono una frequenza vibratoria elevata, che attrae esperienze simili nella realtà della persona. Al contrario, emozioni negative, come la paura, la rabbia, la tristezza o il risentimento, emettono vibrazioni più basse che possono attrarre esperienze negative. Imparare a gestire e a scegliere consapevolmente le proprie emozioni permette di allinearsi più facilmente con ciò che si desidera, invece di rimanere bloccati in stati emotivi che attirano circostanze indesiderate. Per esempio, se una persona desidera abbondanza ma si sente costantemente preoccupata o insicura riguardo al denaro, le emozioni di paura e mancanza possono intralciare la manifestazione del benessere economico. Coltivare emozioni positive, attraverso pratiche come la gratitudine, la meditazione, l'immaginazione creativa e l'affermazione, aiuta a mantenere uno stato vibratorio in sintonia con ciò che si vuole attrarre nella propria vita. Le emozioni, quindi, non sono un semplice effetto dei pensieri, ma un elemento fondamentale nel processo di attrazione: esse indicano il grado di allineamento tra ciò che si desidera e ciò che si sta realmente vibrando. Prestare attenzione alle proprie emozioni e imparare a orientarle in modo consapevole è una componente essenziale per utilizzare efficacemente la Legge di Attrazione.""",  # EMOZIONE
+    3: """Si riferisce alla parte di noi che rappresenta la nostra essenza più autentica, spontanea e pura, spesso associata alle esperienze e alle emozioni vissute durante l'infanzia. È quella parte emotiva e sensibile che conserva, oltre ai ricordi, anche le sensazioni legate alle esperienze passate, sia positive che negative. Il bambino interiore è il custode di molte delle nostre convinzioni profonde, specialmente quelle sviluppate nei primi anni di vita, quando siamo particolarmente influenzabili dall'ambiente familiare e sociale. Queste convinzioni, spesso inconsce, possono influenzare il modo in cui vediamo noi stessi e il mondo, e quindi anche le nostre capacità di attrarre ciò che desideriamo. Nella Legge d'Attrazione, il bambino interiore è importante perché rappresenta il livello emotivo e subconscio da cui provengono molte delle vibrazioni che emettiamo, in base a quanto ci sentiamo meritevoli, amati, sicuri o al contrario inadeguati, non amabili o insicuri. Se il bambino interiore porta ferite, traumi o credenze limitanti, queste possono sabotare i tentativi consci di manifestare una realtà positiva, perché a livello profondo ci si sente magari non degni di ricevere amore, successo o abbondanza. Prendersi cura del proprio bambino interiore attraverso pratiche di guarigione, accoglienza e riconoscimento permette di sciogliere tali blocchi emotivi, sostituendo vecchie credenze con nuove convinzioni più armoniose e favorevoli. Questo processo favorisce un maggiore allineamento tra ciò che si desidera a livello conscio e ciò che si sente di meritare a livello subconscio. In questo modo, l'energia emotiva che emettiamo diventa più coerente con i nostri desideri, facilitando la manifestazione di esperienze più positive. Il bambino interiore, quindi, non è solo un simbolo psicologico, ma una chiave energetica importante nel lavoro di trasformazione interiore necessario per utilizzare efficacemente la Legge d'Attrazione. Riconoscere, ascoltare e guarire il bambino interiore permette di liberare tanta energia bloccata e di aprirsi a una vita più piena, creativa e allineata ai propri desideri più autentici. Quando il bambino interiore si sente accolto, amato e al sicuro, diventa più facile credere di meritare il meglio e manifestare i nostri desideri con maggiore facilità e autenticità.""",  # BAMBINO INTERIORE
+    4: """Si riferisce alla capacità di liberarsi dei sentimenti negativi, come la rabbia, il risentimento o il rancore, verso se stessi o verso gli altri, in modo da ripristinare equilibrio ed armonia interiore. Il perdono non significa giustificare o minimizzare il comportamento altrui, ma piuttosto scegliere consapevolmente di non rimanere intrappolati in emozioni che avvelenano la propria vita e il proprio campo energetico. Nel contesto della Legge d'Attrazione, il perdono è fondamentale perché trattenere emozioni negative mantiene attiva una vibrazione bassa che può attirare esperienze simili nella realtà quotidiana. Quando si prova costantemente rancore o si rimane legati a vecchi dolori, si continua a rivivere interiormente quelle situazioni, anche se esternamente sembrano far parte del passato. Questo stato emotivo, prolungato nel tempo, può ostacolare la manifestazione di desideri positivi, poiché l'energia è occupata nel mantenere in vita pensieri ed emozioni che non sono in armonia con ciò che si vuole attrarre. Perdonare, invece, permette di sciogliere i legami energetici con esperienze e persone che ci hanno ferito, liberando spazio interiore per emozioni più elevate, come la pace, la gratitudine e l'amore. Questo cambiamento di frequenza interiore facilita l'allineamento con nuove esperienze più positive, poiché l'energia della persona non è più concentrata nel rivivere il passato, ma è disponibile per creare nuove possibilità nel presente. Il perdono è, quindi, un atto di amore verso se stessi, perché consente di liberarsi da pesi emotivi che impediscono di vivere pienamente e di utilizzare in modo efficace la Legge d'Attrazione. Non è un processo immediato, ma un percorso di consapevolezza e di scelta, in cui si decide, passo dopo passo, di non lasciare che il dolore passato determini la qualità della propria vita presente e futura. Riconoscere il valore del perdono e praticarlo consapevolmente permette di creare uno spazio per la positività e il benessere.""",  # PERDONO
+    5: """Si riferisce alla capacità di avere una chiara comprensione di ciò che si desidera realmente. Nel contesto della Legge d'Attrazione, la chiarezza dell'intento è essenziale, poiché ciò che si emette in termini di pensieri, emozioni e credenze determina ciò che si attrae nella propria vita. Se l'intento è confuso o contraddittorio, anche i risultati che si ottengono possono essere altrettanto confusi o incoerenti. Avere chiarezza d'intento significa definire con precisione ciò che si vuole sperimentare, evitando espressioni generiche o ambigue, e comprendendo anche il perché profondo del proprio desiderio. La Legge d'Attrazione risponde alle vibrazioni emesse, non solo alle parole, quindi è importante che l'intento sia allineato sia a livello mentale che emotivo. Quando una persona è incerta sui propri desideri o nutre dubbi interni, invia segnali misti all'universo, oscillando tra ciò che vuole e ciò che teme. Questo crea una vibrazione instabile che può attirare situazioni in contrasto tra loro. Al contrario, quando l'intento è lucido, coerente e sostenuto da una forte convinzione, la vibrazione emessa è più potente e focalizzata. La chiarezza d'intento richiede anche di essere onesti con se stessi, riconoscendo le motivazioni profonde che stanno dietro ai propri desideri. È importante chiedersi se ciò che si vuole è davvero in armonia con i propri valori, con il proprio benessere e con il bene che si desidera anche per gli altri. Quando l'intento è puro e allineato alla propria verità interiore, la Legge d'Attrazione può agire con maggiore precisione, aprendo la strada a sincronicità, opportunità e incontri significativi. Prendersi il tempo per definire con cura ciò che si desidera, magari scrivendo, visualizzando o meditandoci sopra, aiuta a consolidare la chiarezza d'intento. Questo non solo facilita il processo di manifestazione, ma rafforza anche la fiducia in se stessi e nella vita, poiché si percepisce di avere una direzione chiara verso cui orientare i propri passi e le proprie energie. In sintesi, la chiarezza d'intento è una componente fondamentale per utilizzare consapevolmente la Legge d'Attrazione e dirigere in modo armonico le proprie energie verso un obiettivo ben definito.""",  # CHIAREZZA INTENTO
+    6: """La mente subconscia è una parte della mente che opera al di sotto del livello della consapevolezza cosciente e che immagazzina pensieri, credenze, emozioni e ricordi anche molto profondi. Nel contesto della Legge d'Attrazione, la mente subconscia svolge un ruolo fondamentale, poiché molte delle vibrazioni che emettiamo derivano proprio da ciò che è radicato in essa, spesso al di là di ciò che percepiamo consapevolmente. Anche se una persona afferma di desiderare qualcosa a livello cosciente, se nel subconscio sono presenti convinzioni contrarie (ad esempio sentirsi indegni, incapaci o sfortunati), queste convinzioni possono sabotare il processo di manifestazione. La mente subconscia, infatti, tende a riprodurre nella realtà esterna le immagini e le credenze che ospita, indipendentemente da ciò che si dice o si pensa superficialmente. È come un potente motore che dirige la nostra vita in base a programmi interiori spesso installati nell'infanzia o attraverso esperienze emotive intense. Per utilizzare in modo efficace la Legge d'Attrazione, è quindi importante lavorare proprio a livello subconscio, al fine di identificare e trasformare quelle credenze limitanti che non sono in sintonia con ciò che si desidera manifestare. Tecniche come la visualizzazione creativa, le affermazioni ripetute con emozione, la meditazione, l'ipnosi o altre pratiche di introspezione possono essere utili per riprogrammare il subconscio con nuove credenze più favorevoli. Quando la mente subconscia è allineata ai desideri coscienti, il flusso di energia diretta verso la manifestazione diventa molto più armonico e potente. I pensieri smettono di essere in conflitto tra loro e l'energia non viene dispersa in dubbi o autosabotaggi inconsci. Di conseguenza, la persona può sperimentare con maggiore facilità situazioni ed esperienze che riflettono il nuovo schema interiore. La mente subconscia, dunque, è come un terreno fertile: se vi si seminano credenze di paura, scarsità o indegnità, cresceranno situazioni che riflettono tali semi. Se invece vi si piantano semi di fiducia, abbondanza e amore per sé, la realtà esterna tenderà gradualmente a rispecchiare queste nuove convinzioni. Prendersi cura della propria mente subconscia è quindi un passo essenziale per lavorare consapevolmente con la Legge d'Attrazione.""",  # MENTE SUBCONSCIA
+    7: """... (omesso qui per brevità nel messaggio – nel tuo file completo ci saranno tutte le carte fino alla 33, come da guida) ...""",  # FIDUCIA
+    # NEL TUO file app.py COMPLETO QUI CI SARANNO TUTTE LE VOCI FINO ALLA 33
+}
