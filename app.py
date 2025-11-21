@@ -29,3 +29,146 @@ CARD_MEANINGS = {
     7: """... (omesso qui per brevità nel messaggio – nel tuo file completo ci saranno tutte le carte fino alla 33, come da guida) ...""",  # FIDUCIA
     # NEL TUO file app.py COMPLETO QUI CI SARANNO TUTTE LE VOCI FINO ALLA 33
 }
+# --------------------------------------------------------------------
+# Mappa dal nome della carta al suo significato
+# (si appoggia agli ID definiti in CARD_MEANINGS)
+# --------------------------------------------------------------------
+CARD_MEANINGS_BY_NAME = {
+    "Uomo": CARD_MEANINGS.get(1, ""),
+    "Emozione": CARD_MEANINGS.get(2, ""),
+    "Bambino Interiore": CARD_MEANINGS.get(3, ""),
+    "Perdono": CARD_MEANINGS.get(4, ""),
+    "Chiarezza Intento": CARD_MEANINGS.get(5, ""),
+    "Mente Subconscia": CARD_MEANINGS.get(6, ""),
+    "Fiducia": CARD_MEANINGS.get(7, ""),
+    "Credere a cio' che si vuole": CARD_MEANINGS.get(8, ""),
+    "Osservatore Massimo": CARD_MEANINGS.get(9, ""),
+    "Sensazione": CARD_MEANINGS.get(10, ""),
+    "Gratitudine": CARD_MEANINGS.get(11, ""),
+    "Parte superiore del se'": CARD_MEANINGS.get(12, ""),
+    "Legge d'Attrazione": CARD_MEANINGS.get(13, ""),
+    "Desiderio Chiaro": CARD_MEANINGS.get(14, ""),
+    "Messaggero": CARD_MEANINGS.get(15, ""),
+    "Meditazione": CARD_MEANINGS.get(16, ""),
+    "Abbondanza": CARD_MEANINGS.get(17, ""),
+    "Orologio": CARD_MEANINGS.get(18, ""),
+    "Quaderni": CARD_MEANINGS.get(19, ""),
+    "Non": CARD_MEANINGS.get(20, ""),
+    "Nero": CARD_MEANINGS.get(21, ""),
+    "Potere Immaginazione Creativa": CARD_MEANINGS.get(22, ""),
+    "Legge di Resistenza": CARD_MEANINGS.get(23, ""),
+    "Come in cielo cosi' in terra": CARD_MEANINGS.get(24, ""),
+    "Universo": CARD_MEANINGS.get(25, ""),
+    "La Rabbia": CARD_MEANINGS.get(26, ""),
+    "Bianco": CARD_MEANINGS.get(27, ""),
+    "l'Amore": CARD_MEANINGS.get(28, ""),
+    "Agire nonostante la paura": CARD_MEANINGS.get(29, ""),
+    "Fossa Leoni": CARD_MEANINGS.get(30, ""),
+    "Consapevolezza": CARD_MEANINGS.get(31, ""),
+    "Obiettivo": CARD_MEANINGS.get(32, ""),
+    "Io Sono": CARD_MEANINGS.get(33, ""),
+}
+
+
+def build_prompt(spread_type, cards, intention):
+    """
+    Crea il testo che viene mandato al modello, usando:
+    - tipo di lettura (1 o 3 carte)
+    - carte estratte (nomi)
+    - intenzione dell'utente (se presente)
+    - significati guida dalla tua mappa
+    """
+
+    spread_label = (
+        "Lettura a 1 carta (messaggio essenziale)"
+        if spread_type == "1-carta"
+        else "Lettura a 3 carte (passato – presente – potenziale)"
+    )
+
+    parts = []
+    parts.append(f"Tipo di lettura: {spread_label}.")
+
+    if intention:
+        parts.append(f"Intenzione dichiarata dall'utente: {intention}")
+    else:
+        parts.append(
+            "L'utente non ha scritto un'intenzione specifica. "
+            "Offri un messaggio generale ma sempre pratico e centrato sulla crescita interiore."
+        )
+
+    parts.append("\nCarte estratte:")
+
+    for idx, name in enumerate(cards, start=1):
+        meaning = CARD_MEANINGS_BY_NAME.get(name, "")
+        parts.append(f"\nCarta {idx}: {name}")
+        if meaning:
+            parts.append(
+                "Significato guida (informazione per te, non da copiare integralmente nella risposta):\n"
+                f"{meaning}\n"
+            )
+
+    parts.append(
+        "\nUsa queste informazioni per restituire UNA SOLA interpretazione integrata, in italiano, "
+        "organizzata in brevi paragrafi o punti chiari. "
+        "Non fare previsioni fatalistiche, non dare ordini, non ripetere pari pari i testi guida. "
+        "Collega il messaggio delle carte all'intenzione dell'utente e proponi spunti concreti di "
+        "riflessione o di azione pratica."
+    )
+
+    return "\n".join(parts)
+
+
+# --------------------------------------------------------------------
+# Endpoint principale usato dal sito:
+#   POST /api/secret-of-power/interpretation
+# --------------------------------------------------------------------
+@app.route("/api/secret-of-power/interpretation", methods=["POST", "OPTIONS"])
+def interpretation():
+    # Risposta immediata al preflight CORS (OPTIONS)
+    if request.method == "OPTIONS":
+        return ("", 200)
+
+    data = request.get_json(silent=True) or {}
+    spread_type = data.get("spreadType", "1-carta")  # "1-carta" o "3-carte"
+    cards = data.get("cards", [])                    # lista di nomi di carta
+    intention = data.get("intention")                # stringa o None
+
+    if not isinstance(cards, list) or not cards:
+        return jsonify(
+            {
+                "interpretation": None,
+                "error": "Nessuna carta ricevuta."
+            }
+        ), 400
+
+    try:
+        user_content = build_prompt(spread_type, cards, intention)
+
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            temperature=0.8,
+            max_tokens=700,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+        )
+
+        text = completion.choices[0].message.content.strip()
+        return jsonify({"interpretation": text})
+
+    except Exception as e:
+        # Log di servizio (lo vedi nei log di Render)
+        print("Errore OpenAI:", e)
+
+        fallback = (
+            "Le carte sono state estratte, ma al momento non è possibile generare "
+            "un messaggio approfondito. Lascia comunque che i loro simboli lavorino dentro di te "
+            "e torna più tardi per una nuova lettura."
+        )
+        return jsonify({"interpretation": fallback}), 200
+
+
+if __name__ == "__main__":
+    # Utile se lo lanci in locale; su Render viene usato gunicorn app:app
+    app.run(host="0.0.0.0", port=10000)
