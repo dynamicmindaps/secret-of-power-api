@@ -130,10 +130,22 @@ def interpretation():
 
     data = request.get_json(silent=True) or {}
     spread_type = data.get("spreadType", "1-carta")  # "1-carta" o "3-carte"
-    cards = data.get("cards", [])                    # lista di nomi di carta
+    cards_raw = data.get("cards", [])                # può essere lista di stringhe OPPURE di dict
     intention = data.get("intention")                # stringa o None
 
-    if not isinstance(cards, list) or not cards:
+    # Normalizziamo le carte in una lista di NOMI (stringhe)
+    normalized_cards = []
+    for c in cards_raw:
+        if isinstance(c, dict):
+            # prova a prendere il nome da varie chiavi possibili
+            nm = c.get("name") or c.get("label") or c.get("title") or ""
+            if not nm:
+                nm = str(c)
+        else:
+            nm = str(c)
+        normalized_cards.append(nm)
+
+    if not normalized_cards:
         return jsonify(
             {
                 "interpretation": None,
@@ -142,7 +154,7 @@ def interpretation():
         ), 400
 
     try:
-        user_content = build_prompt(spread_type, cards, intention)
+        user_content = build_prompt(spread_type, normalized_cards, intention)
 
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -150,7 +162,7 @@ def interpretation():
             max_tokens=700,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_content},
+                {"role": "user",  "content": user_content},
             ],
         )
 
@@ -167,8 +179,3 @@ def interpretation():
             "e torna più tardi per una nuova lettura."
         )
         return jsonify({"interpretation": fallback}), 200
-
-
-if __name__ == "__main__":
-    # Utile se lo lanci in locale; su Render viene usato gunicorn app:app
-    app.run(host="0.0.0.0", port=10000)
