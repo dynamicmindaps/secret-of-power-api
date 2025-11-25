@@ -187,9 +187,10 @@ def validate_and_consume_code(code_string):
     code.use_credit()
     db.session.commit()
 
-    return {
+       return {
         "ok": True,
-        "credits_left": code.credits_left
+        "credits_left": code.credits_left,
+        "credits_total": code.credits_total
     }
 
 
@@ -290,11 +291,12 @@ def interpretation():
         )
 
         text = completion.choices[0].message.content.strip()
-        return jsonify({
+               return jsonify({
             "ok": True,
             "interpretation": text,
             "message": text,
-            "credits_left": credit_check["credits_left"]
+            "credits_left": credit_check.get("credits_left"),
+            "credits_total": credit_check.get("credits_total")
         })
 
     except Exception as e:
