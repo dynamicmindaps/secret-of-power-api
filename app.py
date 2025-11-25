@@ -159,7 +159,9 @@ def validate_and_consume_code(code_string):
     Controlla che il Codice Lettura esista, sia attivo e con crediti disponibili.
     Se ok, scala 1 credito e restituisce credits_left.
     """
-    code = ReadingCode.query.filter_by(code=code_string).first()
+    clean_code = (code_string or "").strip().upper()
+    code = ReadingCode.query.filter_by(code=clean_code).first()
+
 
     if not code:
         return {
@@ -226,13 +228,15 @@ def interpretation():
     data = request.get_json(silent=True) or {}
 
     # 1. Controllo Codice Lettura
-    reading_code = (data.get("code") or "").strip()
+        # 1. Controllo Codice Lettura
+    reading_code = (data.get("code") or "").strip().upper()
     if not reading_code:
         return jsonify({
             "ok": False,
             "error": "CODICE_MANCANTE",
             "message": "È necessario inserire un Codice Lettura."
         }), 400
+
 
     credit_check = validate_and_consume_code(reading_code)
     if not credit_check["ok"]:
