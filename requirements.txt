@@ -2,3 +2,4 @@ flask
 gunicorn
 openai
 flask-cors
+Flask-SQLAlchemy
