@@ -2,8 +2,17 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from openai import OpenAI
 from flask_sqlalchemy import SQLAlchemy
+import random
+import string
 
 app = Flask(__name__)
+
+# Configurazione database per i Codici Lettura
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sop_codes.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+
 CORS(app)
 
 # Client OpenAI: usa la variabile di ambiente OPENAI_API_KEY
@@ -30,6 +39,7 @@ CARD_MEANINGS = {
     7: """... (omesso qui per brevità nel messaggio – nel tuo file completo ci saranno tutte le carte fino alla 33, come da guida) ...""",  # FIDUCIA
     # NEL TUO file app.py COMPLETO QUI CI SARANNO TUTTE LE VOCI FINO ALLA 33
 }
+
 # --------------------------------------------------------------------
 # Mappa dal nome della carta al suo significato
 # (si appoggia agli ID definiti in CARD_MEANINGS)
@@ -120,6 +130,90 @@ def build_prompt(spread_type, cards, intention):
 
 
 # --------------------------------------------------------------------
+# Modello per Codici Lettura
+# --------------------------------------------------------------------
+class ReadingCode(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(50), unique=True, nullable=False)
+    credits_total = db.Column(db.Integer, default=0)
+    credits_used = db.Column(db.Integer, default=0)
+    disabled = db.Column(db.Boolean, default=False)
+    note = db.Column(db.String(255))
+
+    @property
+    def credits_left(self):
+        return self.credits_total - self.credits_used
+
+    def can_use(self):
+        return not self.disabled and self.credits_left > 0
+
+    def use_credit(self):
+        if self.can_use():
+            self.credits_used += 1
+            return True
+        return False
+
+
+def validate_and_consume_code(code_string):
+    """
+    Controlla che il Codice Lettura esista, sia attivo e con crediti disponibili.
+    Se ok, scala 1 credito e restituisce credits_left.
+    """
+    code = ReadingCode.query.filter_by(code=code_string).first()
+
+    if not code:
+        return {
+            "ok": False,
+            "error": "CODICE_NON_VALIDO",
+            "message": "Il Codice Lettura inserito non esiste."
+        }
+
+    if code.disabled:
+        return {
+            "ok": False,
+            "error": "CODICE_NON_VALIDO",
+            "message": "Il Codice Lettura inserito non è più valido."
+        }
+
+    if code.credits_left <= 0:
+        return {
+            "ok": False,
+            "error": "CREDITI_INSUFFICIENTI",
+            "message": "Hai esaurito i crediti associati a questo Codice Lettura."
+        }
+
+    code.use_credit()
+    db.session.commit()
+
+    return {
+        "ok": True,
+        "credits_left": code.credits_left
+    }
+
+
+def generate_code(credits=3, note=None):
+    """
+    Utility per generare nuovi Codici Lettura dal backend.
+    Esempio d'uso (in una shell o route admin):
+        print(generate_code(credits=3, note="Regalo con mazzo carte"))
+    """
+    raw = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
+    code_string = "SOP-" + raw
+
+    new_code = ReadingCode(
+        code=code_string,
+        credits_total=credits,
+        credits_used=0,
+        disabled=False,
+        note=note
+    )
+    db.session.add(new_code)
+    db.session.commit()
+
+    return code_string
+
+
+# --------------------------------------------------------------------
 # Endpoint principale usato dal sito:
 #   POST /api/secret-of-power/interpretation
 # --------------------------------------------------------------------
@@ -130,9 +224,32 @@ def interpretation():
         return ("", 200)
 
     data = request.get_json(silent=True) or {}
-    spread_type = data.get("spreadType", "1-carta")  # "1-carta" o "3-carte"
-    cards_raw = data.get("cards", [])                # può essere lista di stringhe OPPURE di dict
-    intention = data.get("intention")                # stringa o None
+
+    # 1. Controllo Codice Lettura
+    reading_code = (data.get("code") or "").strip()
+    if not reading_code:
+        return jsonify({
+            "ok": False,
+            "error": "CODICE_MANCANTE",
+            "message": "È necessario inserire un Codice Lettura."
+        }), 400
+
+    credit_check = validate_and_consume_code(reading_code)
+    if not credit_check["ok"]:
+        # Es. CODICE_NON_VALIDO o CREDITI_INSUFFICIENTI
+        return jsonify(credit_check), 400
+
+    # 2. Parametri della lettura
+    # accettiamo sia "spread_type" (snake) che "spreadType" (camel)
+    spread_type_raw = data.get("spread_type") or data.get("spreadType") or "1-carta"
+    # normalizziamo a "1-carta" / "3-carte"
+    if str(spread_type_raw) in ("1-carta", "1_carta", "1 carta", "1"):
+        spread_type = "1-carta"
+    else:
+        spread_type = "3-carte"
+
+    cards_raw = data.get("cards", [])      # può essere lista di stringhe O di dict
+    intention = data.get("intention")      # stringa o None
 
     # Normalizziamo le carte in una lista di NOMI (stringhe)
     normalized_cards = []
@@ -149,6 +266,7 @@ def interpretation():
     if not normalized_cards:
         return jsonify(
             {
+                "ok": False,
                 "interpretation": None,
                 "error": "Nessuna carta ricevuta."
             }
@@ -168,7 +286,12 @@ def interpretation():
         )
 
         text = completion.choices[0].message.content.strip()
-        return jsonify({"interpretation": text})
+        return jsonify({
+            "ok": True,
+            "interpretation": text,
+            "message": text,
+            "credits_left": credit_check["credits_left"]
+        })
 
     except Exception as e:
         # Log di servizio (lo vedi nei log di Render)
@@ -179,4 +302,13 @@ def interpretation():
             "un messaggio approfondito. Lascia comunque che i loro simboli lavorino dentro di te "
             "e torna più tardi per una nuova lettura."
         )
-        return jsonify({"interpretation": fallback}), 200
+        return jsonify({
+            "ok": False,
+            "interpretation": fallback
+        }), 200
+
+
+# Creazione delle tabelle (se non esistono) all'avvio dell'app
+with app.app_context():
+    db.create_all()
+
