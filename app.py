@@ -307,6 +307,47 @@ def interpretation():
             "interpretation": fallback
         }), 200
 
+# ===============================================================
+# ADMIN: GENERATORE DI CODICI LETTURA (Semplice, con "password" URL)
+# ===============================================================
+
+@app.route("/admin/genera-codice", methods=["GET", "POST"])
+def admin_generate_code():
+    # Semplice protezione tramite password nell’URL
+    secret = request.args.get("secret")
+    if secret != "DINAMIC123":  # <-- Cambia questa password!
+        return "Accesso negato", 403
+
+    if request.method == "POST":
+        try:
+            credits = int(request.form.get("credits", 1))
+            note = request.form.get("note", "")
+            code = generate_code(credits=credits, note=note)
+
+            return f"""
+            <h2>Codice generato:</h2>
+            <div style='font-size:22px;font-weight:bold;'>{code}</div>
+            <p>Crediti: {credits}</p>
+            <p>Note: {note}</p>
+            <br><br>
+            <a href='/admin/genera-codice?secret=DINAMIC123'>Genera un altro codice</a>
+            """
+        except Exception as e:
+            return f"Errore: {e}"
+
+    # FORM HTML
+    return """
+    <h2>Generatore Codici Lettura</h2>
+    <form method='POST'>
+        <label>Numero crediti:</label><br>
+        <input name='credits' type='number' value='3' /><br><br>
+
+        <label>Note (facoltativo):</label><br>
+        <input name='note' type='text' /><br><br>
+
+        <button type='submit'>Genera Codice</button>
+    </form>
+    """
 
 # Creazione delle tabelle (se non esistono) all'avvio dell'app
 with app.app_context():
