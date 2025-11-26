@@ -16,7 +16,7 @@ db = SQLAlchemy(app)
 CORS(app)
 
 # Segreto per l'admin dei codici (CAMBIALO!)
-ADMIN_SECRET = os.environ.get("SOP_ADMIN_SECRET", "CAMBIA_QUESTO")
+ADMIN_SECRET = os.environ.get("SOP_ADMIN_SECRET", "M3nt3v3loc3!_SOP")
 
 # Client OpenAI: usa la variabile di ambiente OPENAI_API_KEY
 client = OpenAI()
