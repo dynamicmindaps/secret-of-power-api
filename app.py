@@ -295,6 +295,10 @@ def admin_generate_code():
 # ENDPOINT PRINCIPALE USATO DAL SITO:
 #   POST /api/secret-of-power/interpretation
 # --------------------------------------------------------------------
+@app.route("/api/status")
+def status():
+    return jsonify({"ok": True, "status": "online"})
+
 @app.route("/api/secret-of-power/interpretation", methods=["POST", "OPTIONS"])
 def interpretation():
     # Risposta immediata al preflight CORS (OPTIONS)
