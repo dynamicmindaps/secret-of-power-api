@@ -290,6 +290,82 @@ def admin_generate_code():
     </html>
     """
     return render_template_string(html_result)
+# --------------------------------------------------------------------
+# ENDPOINT PER GENERARE CODICI DA WOOCOMMERCE
+# --------------------------------------------------------------------
+@app.route("/admin/genera-codice-da-woocommerce", methods=["POST"])
+def genera_codice_da_woocommerce():
+    data = request.get_json(silent=True) or {}
+
+    secret = data.get("secret")
+    if secret != ADMIN_SECRET:
+        return jsonify({"ok": False, "error": "UNAUTHORIZED"}), 401
+
+    credits_total = data.get("credits_total")
+    if not isinstance(credits_total, int) or credits_total <= 0:
+        return jsonify({"ok": False, "error": "CREDITS_INVALIDI"}), 400
+
+    order_id = data.get("order_id")  # opzionale
+    note = data.get("note") or ""
+    if order_id:
+        note = f"Generato da WooCommerce ordine #{order_id} - " + note
+
+    code_value = generate_random_code()
+
+    new_code = ReadingCode(
+        code=code_value,
+        credits_total=credits_total,
+        credits_used=0,
+        disabled=False,
+        note=note
+    )
+    db.session.add(new_code)
+    db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "code": code_value,
+        "credits_total": new_code.credits_total,
+        "credits_used": new_code.credits_used
+    })
+# --------------------------------------------------------------------
+# ENDPOINT PER GENERARE CODICI DA WOOCOMMERCE
+# --------------------------------------------------------------------
+@app.route("/admin/genera-codice-da-woocommerce", methods=["POST"])
+def genera_codice_da_woocommerce():
+    data = request.get_json(silent=True) or {}
+
+    secret = data.get("secret")
+    if secret != ADMIN_SECRET:
+        return jsonify({"ok": False, "error": "UNAUTHORIZED"}), 401
+
+    credits_total = data.get("credits_total")
+    if not isinstance(credits_total, int) or credits_total <= 0:
+        return jsonify({"ok": False, "error": "CREDITS_INVALIDI"}), 400
+
+    order_id = data.get("order_id")  # opzionale
+    note = data.get("note") or ""
+    if order_id:
+        note = f"Generato da WooCommerce ordine #{order_id} - " + note
+
+    code_value = generate_random_code()
+
+    new_code = ReadingCode(
+        code=code_value,
+        credits_total=credits_total,
+        credits_used=0,
+        disabled=False,
+        note=note
+    )
+    db.session.add(new_code)
+    db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "code": code_value,
+        "credits_total": new_code.credits_total,
+        "credits_used": new_code.credits_used
+    })
 
 # --------------------------------------------------------------------
 # ENDPOINT PRINCIPALE USATO DAL SITO:
