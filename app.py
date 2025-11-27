@@ -329,6 +329,66 @@ def genera_codice_da_woocommerce():
         "credits_total": new_code.credits_total,
         "credits_used": new_code.credits_used
     })
+# --------------------------------------------------------------------
+# PAGINA ADMIN PER ELENCO CODICI
+# --------------------------------------------------------------------
+@app.route("/admin/codici")
+def lista_codici():
+    secret = request.args.get("secret")
+    if secret != ADMIN_SECRET:
+        return "Non autorizzato", 401
+
+    codes = ReadingCode.query.order_by(ReadingCode.id.desc()).all()
+
+    rows = []
+    for c in codes:
+        rows.append(f"""
+            <tr>
+                <td>{c.id}</td>
+                <td>{c.code}</td>
+                <td>{c.credits_total}</td>
+                <td>{c.credits_used}</td>
+                <td>{c.credits_left}</td>
+                <td>{"Sì" if c.disabled else "No"}</td>
+                <td>{c.note or ""}</td>
+            </tr>
+        """)
+
+    html = f"""
+    <html>
+    <head>
+        <title>Codici Lettura - The Secret of Power</title>
+        <meta charset="utf-8">
+        <style>
+            body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; }}
+            table {{ border-collapse: collapse; width: 100%; max-width: 1000px; margin: 20px auto; }}
+            th, td {{ border: 1px solid #ccc; padding: 6px 8px; font-size: 0.9em; }}
+            th {{ background: #f0f0f0; }}
+            h1 {{ text-align: center; margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <h1>Codici Lettura - The Secret of Power</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Codice</th>
+                    <th>Crediti Totali</th>
+                    <th>Crediti Usati</th>
+                    <th>Crediti Rimasti</th>
+                    <th>Disabilitato</th>
+                    <th>Note</th>
+                </tr>
+            </thead>
+            <tbody>
+                {''.join(rows)}
+            </tbody>
+        </table>
+    </body>
+    </html>
+    """
+    return html
 
 # --------------------------------------------------------------------
 # ENDPOINT PRINCIPALE USATO DAL SITO:
