@@ -176,8 +176,12 @@ def validate_and_consume_code(code_string):
     """
     Controlla che il Codice Lettura esista, sia attivo e con crediti disponibili.
     Se ok, scala 1 credito e restituisce credits_left e credits_total.
+    Normalizza il codice rimuovendo tutti gli spazi/a-capo interni.
     """
-    clean_code = (code_string or "").strip().upper()
+    # Porta tutto in maiuscolo e rimuove TUTTI i caratteri di spazio (anche accapo) ovunque
+    raw = (code_string or "").upper()
+    clean_code = "".join(ch for ch in raw if not ch.isspace())
+
     if not clean_code:
         return {
             "ok": False,
@@ -216,6 +220,7 @@ def validate_and_consume_code(code_string):
         "credits_left": code.credits_left,
         "credits_total": code.credits_total
     }
+
 
 
 def generate_random_code(prefix="SOP-", length=10):
@@ -344,7 +349,7 @@ def lista_codici():
     for c in codes:
         rows.append(f"""
             <tr>
-                <td>{c.id}</td>
+                <td style="white-space:nowrap;">{c.code}</td>
                 <td>{c.code}</td>
                 <td>{c.credits_total}</td>
                 <td>{c.credits_used}</td>
