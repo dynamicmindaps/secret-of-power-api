@@ -9,7 +9,10 @@ import string
 app = Flask(__name__)
 
 # Configurazione database per i Codici Lettura
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///sop_codes.db"
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+    "DATABASE_URL",
+    "sqlite:///sop_codes.db"
+)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
