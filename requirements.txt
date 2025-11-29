@@ -3,3 +3,4 @@ gunicorn
 openai
 flask-cors
 Flask-SQLAlchemy
+psycopg2-binary
