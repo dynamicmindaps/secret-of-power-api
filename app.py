@@ -361,6 +361,28 @@ def genera_codice_da_woocommerce():
         "credits_total": new_code.credits_total,
         "credits_used": new_code.credits_used
     })
+
+@app.route("/admin/disabilita-codice", methods=["POST"])
+def admin_disabilita_codice():
+    data = request.get_json(silent=True) or {}
+    secret = data.get("secret")
+    if secret != ADMIN_SECRET:
+        return jsonify({"ok": False, "error": "UNAUTHORIZED"}), 401
+
+    code_id = data.get("id")
+    try:
+        code_id = int(code_id)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "ID_NON_VALIDO"}), 400
+
+    code = ReadingCode.query.get(code_id)
+    if not code:
+        return jsonify({"ok": False, "error": "CODICE_NON_TROVATO"}), 404
+
+    code.disabled = True
+    db.session.commit()
+
+    return jsonify({"ok": True, "id": code.id})
 # --------------------------------------------------------------------
 # PAGINA ADMIN PER ELENCO CODICI
 # --------------------------------------------------------------------
