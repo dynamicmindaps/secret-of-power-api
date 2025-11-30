@@ -323,6 +323,9 @@ def admin_codici_json():
     """
     return render_template_string(html_result)
 
+
+
+
 # --------------------------------------------------------------------
 # ENDPOINT PER GENERARE CODICI DA WOOCOMMERCE
 # --------------------------------------------------------------------
@@ -383,6 +386,8 @@ def admin_disabilita_codice():
     db.session.commit()
 
     return jsonify({"ok": True, "id": code.id})
+
+
 # --------------------------------------------------------------------
 # PAGINA ADMIN PER ELENCO CODICI
 # --------------------------------------------------------------------
