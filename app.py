@@ -261,6 +261,30 @@ def admin_generate_code():
         """
         return render_template_string(html_form)
 
+# --------------------------------------------------------------------
+# ENDPOINT ADMIN PER OTTENERE LA LISTA DEI CODICI IN JSON
+# --------------------------------------------------------------------
+@app.route("/admin/codici-json", methods=["GET"])
+def admin_codici_json():
+    secret = request.args.get("secret", "")
+    if secret != ADMIN_SECRET:
+        return jsonify({"ok": False, "error": "UNAUTHORIZED"}), 401
+
+    codes = ReadingCode.query.order_by(ReadingCode.id.desc()).all()
+
+    data = []
+    for c in codes:
+        data.append({
+            "id": c.id,
+            "code": c.code,
+            "credits_total": c.credits_total,
+            "credits_used": c.credits_used,
+            "credits_left": c.credits_left,
+            "disabled": bool(c.disabled),
+            "note": c.note or ""
+        })
+
+    return jsonify({"ok": True, "codes": data})    
     # POST: genera il codice
     credits_str = request.form.get("credits", "1")
     note = request.form.get("note", "").strip()
