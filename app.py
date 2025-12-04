@@ -18,7 +18,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 CORS(app)
 
-# Segreto per l'admin dei codici (CAMBIALO!)
+# Segreto per l'admin dei codici
 ADMIN_SECRET = os.environ.get("SOP_ADMIN_SECRET", "M3nt3v3loc3!_SOP")
 
 # Client OpenAI: usa la variabile di ambiente OPENAI_API_KEY
@@ -35,8 +35,7 @@ Aiuti la persona a comprendere il messaggio simbolico delle carte, mettendo l'ac
 """
 
 # --------------------------------------------------------------------
-# SIGNIFICATI DELLE CARTE
-# (nel tuo file reale inserisci TUTTI i testi fino alla 33)
+# SIGNIFICATI DELLE CARTE (esempio, da completare nel file reale)
 # --------------------------------------------------------------------
 CARD_MEANINGS = {
     1: """In riferimento alla Legge d'Attrazione, il termine "uomo" si riferisce alla consapevolezza e al potere dell'essere umano di creare la propria realtà attraverso i pensieri, le emozioni e le azioni. ...""",  # UOMO
@@ -225,7 +224,6 @@ def validate_and_consume_code(code_string):
     }
 
 
-
 def generate_random_code(prefix="SOP-", length=10):
     chars = string.ascii_uppercase + string.digits
     while True:
@@ -235,7 +233,7 @@ def generate_random_code(prefix="SOP-", length=10):
             return code
 
 # --------------------------------------------------------------------
-# ROUTE ADMIN PER GENERARE CODICI (SEMPLICE FORM)
+# ROUTE ADMIN PER GENERARE CODICI (SEMPLICE FORM: GET + POST)
 # --------------------------------------------------------------------
 @app.route("/admin/genera-codice", methods=["GET", "POST"])
 def admin_generate_code():
@@ -261,33 +259,10 @@ def admin_generate_code():
         """
         return render_template_string(html_form)
 
-# --------------------------------------------------------------------
-# ENDPOINT ADMIN PER OTTENERE LA LISTA DEI CODICI IN JSON
-# --------------------------------------------------------------------
-@app.route("/admin/codici-json", methods=["GET"])
-def admin_codici_json():
-    secret = request.args.get("secret", "")
-    if secret != ADMIN_SECRET:
-        return jsonify({"ok": False, "error": "UNAUTHORIZED"}), 401
-
-    codes = ReadingCode.query.order_by(ReadingCode.id.desc()).all()
-
-    data = []
-    for c in codes:
-        data.append({
-            "id": c.id,
-            "code": c.code,
-            "credits_total": c.credits_total,
-            "credits_used": c.credits_used,
-            "credits_left": c.credits_left,
-            "disabled": bool(c.disabled),
-            "note": c.note or ""
-        })
-
-    return jsonify({"ok": True, "codes": data})    
     # POST: genera il codice
     credits_str = request.form.get("credits", "1")
     note = request.form.get("note", "").strip()
+
     try:
         credits = int(credits_str)
     except ValueError:
@@ -318,13 +293,37 @@ def admin_codici_json():
       <p><strong>Note:</strong> {note}</p>
       <hr>
       <a href="?secret={secret}">Genera un altro codice</a>
+      &nbsp;|&nbsp;
+      <a href="/admin/codici?secret={secret}">Vai alla lista codici</a>
     </body>
     </html>
     """
     return render_template_string(html_result)
 
+# --------------------------------------------------------------------
+# ENDPOINT ADMIN PER OTTENERE LA LISTA DEI CODICI IN JSON
+# --------------------------------------------------------------------
+@app.route("/admin/codici-json", methods=["GET"])
+def admin_codici_json():
+    secret = request.args.get("secret", "")
+    if secret != ADMIN_SECRET:
+        return jsonify({"ok": False, "error": "UNAUTHORIZED"}), 401
 
+    codes = ReadingCode.query.order_by(ReadingCode.id.desc()).all()
 
+    data = []
+    for c in codes:
+        data.append({
+            "id": c.id,
+            "code": c.code,
+            "credits_total": c.credits_total,
+            "credits_used": c.credits_used,
+            "credits_left": c.credits_left,
+            "disabled": bool(c.disabled),
+            "note": c.note or ""
+        })
+
+    return jsonify({"ok": True, "codes": data})
 
 # --------------------------------------------------------------------
 # ENDPOINT PER GENERARE CODICI DA WOOCOMMERCE
@@ -387,7 +386,6 @@ def admin_disabilita_codice():
 
     return jsonify({"ok": True, "id": code.id})
 
-
 # --------------------------------------------------------------------
 # PAGINA ADMIN PER ELENCO CODICI
 # --------------------------------------------------------------------
@@ -403,8 +401,8 @@ def lista_codici():
     for c in codes:
         rows.append(f"""
             <tr>
+                <td style="white-space:nowrap;">{c.id}</td>
                 <td style="white-space:nowrap;">{c.code}</td>
-                <td>{c.code}</td>
                 <td>{c.credits_total}</td>
                 <td>{c.credits_used}</td>
                 <td>{c.credits_left}</td>
@@ -546,8 +544,3 @@ def index():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
-# Creazione delle tabelle (se non esistono) all'avvio dell'app
-with app.app_context():
-    db.create_all()
-
