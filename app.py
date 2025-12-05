@@ -5,8 +5,36 @@ from flask_sqlalchemy import SQLAlchemy
 import os
 import random
 import string
+INTENTION_REFINER_SYSTEM_PROMPT = """
+Sei un assistente specializzato nel formulare INTENZIONI chiare e coerenti
+per un oracolo evolutivo basato sulla Legge di Attrazione.
 
-app = Flask(__name__)
+Ricevi dall’utente una descrizione spesso lunga, emotiva e confusa della sua situazione
+e di ciò che desidera ottenere.
+
+Il tuo compito è:
+
+1. Capire il nocciolo dell’intenzione autentica dell’utente.
+2. Trasformare questo nocciolo in UNA SOLA frase di intenzione:
+   - in prima persona singolare (“io” implicito o esplicito)
+   - in forma affermativa (niente “non”, “smettere di”, ecc.)
+   - al presente o presente intenzionale (“scelgo di…”, “mi apro a…”, “sto creando…”)
+   - focalizzata su ciò che l’utente DESIDERA, non su ciò che vuole evitare.
+3. Non dare consigli, non interpretare il futuro: formula soltanto bene l’intenzione.
+4. Se il testo dell’utente contiene molti desideri diversi, scegli quello centrale
+   legato al suo benessere interiore e relazionale.
+
+Restituisci SEMPRE la risposta in formato JSON:
+
+{
+  "refined_intention": "...",
+  "explanation": "..."
+}
+
+- "refined_intention" è la frase finale da usare come intenzione.
+- "explanation" spiega brevemente come l’hai riformulata (max 2 frasi).
+Rispondi sempre in italiano.
+"""app = Flask(__name__)
 
 # Configurazione database per i Codici Lettura
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
@@ -544,3 +572,67 @@ def index():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+from flask import request, jsonify
+import json
+
+@app.route("/api/secret-of-power/refine-intention", methods=["POST"])
+def refine_intention():
+    data = request.get_json(silent=True) or {}
+    raw_intention = (data.get("raw_intention") or "").strip()
+
+    # Validazione base
+    if not raw_intention:
+        return jsonify({
+            "status": "error",
+            "message": "Per favore descrivi prima la tua intenzione nel riquadro."
+        }), 400
+
+    if len(raw_intention) < 20:
+        return jsonify({
+            "status": "error",
+            "message": "Il testo è troppo breve. Prova a descrivere un po’ meglio situazione e desiderio."
+        }), 400
+
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4.1-mini",  # o il modello che stai usando per le letture
+            messages=[
+                {"role": "system", "content": INTENTION_REFINER_SYSTEM_PROMPT},
+                {"role": "user", "content": raw_intention}
+            ],
+            temperature=0.2,
+            max_tokens=300
+        )
+
+        content = completion.choices[0].message.content.strip()
+
+        # Proviamo a parsare come JSON
+        refined = ""
+        explanation = ""
+        try:
+            parsed = json.loads(content)
+            refined = (parsed.get("refined_intention") or "").strip()
+            explanation = (parsed.get("explanation") or "").strip()
+        except Exception:
+            # Se il modello non segue perfettamente il JSON, usiamo tutto il testo come intenzione
+            refined = content
+
+        if not refined:
+            return jsonify({
+                "status": "error",
+                "message": "Non sono riuscito a riformulare l’intenzione. Riprova con una descrizione più chiara."
+            }), 500
+
+        return jsonify({
+            "status": "ok",
+            "refined_intention": refined,
+            "explanation": explanation,
+            "warnings": []
+        })
+
+    except Exception as e:
+        print("Errore refine-intention:", e)
+        return jsonify({
+            "status": "error",
+            "message": "Si è verificato un errore durante la riformulazione dell’intenzione."
+        }), 500
