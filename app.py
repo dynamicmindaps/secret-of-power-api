@@ -184,6 +184,7 @@ def build_prompt(spread_type, cards, intention):
                 f"{meaning}\n"
             )
 
+        # Istruzioni finali generali
     parts.append(
         "\nUsa queste informazioni per restituire UNA SOLA interpretazione integrata, in italiano, "
         "organizzata in brevi paragrafi o punti chiari. "
@@ -191,6 +192,24 @@ def build_prompt(spread_type, cards, intention):
         "Collega il messaggio delle carte all'intenzione dell'utente e proponi spunti concreti di "
         "riflessione o di azione pratica."
     )
+
+    # Se è una lettura a 3 carte, chiediamo una sintesi molto più profonda e meno generica
+    if st in ("3-carte", "3 carte", "tre-carte"):
+        parts.append(
+            "\nPer questa lettura a 3 carte, dopo aver accennato al significato di ciascuna carta, "
+            "focalizzati con particolare cura sulla COMBINAZIONE delle tre carte tra loro rispetto "
+            "all'intenzione dell'utente."
+            "\n- Descrivi come le carte si parlano tra loro: quali tensioni, equilibri o passaggi di fase "
+            "mettono in luce? Ci sono aspetti che si compensano, si rafforzano o si mettono in contrasto?"
+            "\n- Evidenzia almeno 2 o 3 collegamenti concreti tra i simboli delle carte e la situazione "
+            "dell'utente, spiegando in che modo, insieme, raccontano una 'storia energetica' unica."
+            "\n- Non limitarti a consigliare strumenti generici (come tenere un diario, meditare, ripetere "
+            "affermazioni) a meno che non siano legati in modo molto specifico al contenuto di questa "
+            "combinazione di carte. Se li citi, spiega perché questa combinazione LI RENDE particolarmente "
+            "adatti adesso."
+            "\nL'obiettivo è che chi legge senta che il messaggio nasce davvero dall'incastro di queste tre "
+            "carte rispetto alla sua intenzione, non da una lista standard di suggerimenti."
+        )
 
     return "\n".join(parts)
 
