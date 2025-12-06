@@ -5,6 +5,8 @@ from flask_sqlalchemy import SQLAlchemy
 import os
 import random
 import string
+import json
+
 INTENTION_REFINER_SYSTEM_PROMPT = """
 Sei un assistente specializzato nel formulare INTENZIONI chiare e coerenti
 per un oracolo evolutivo basato sulla Legge di Attrazione.
@@ -34,7 +36,9 @@ Restituisci SEMPRE la risposta in formato JSON:
 - "refined_intention" è la frase finale da usare come intenzione.
 - "explanation" spiega brevemente come l’hai riformulata (max 2 frasi).
 Rispondi sempre in italiano.
-"""app = Flask(__name__)
+"""
+
+app = Flask(__name__)
 
 # Configurazione database per i Codici Lettura
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
@@ -72,9 +76,7 @@ CARD_MEANINGS = {
     4: """Si riferisce alla capacità di liberarsi dei sentimenti negativi, come la rabbia, il risentimento o il rancore, verso se stessi o verso gli altri, in modo da ripristinare equilibrio ed armonia interiore. ...""",  # PERDONO
     5: """Si riferisce alla capacità di avere una chiara comprensione di ciò che si desidera realmente. ...""",  # CHIAREZZA INTENTO
     6: """La mente subconscia è una parte della mente che opera al di sotto del livello della consapevolezza cosciente e che immagazzina pensieri, credenze, emozioni e ricordi anche molto profondi. ...""",  # MENTE SUBCONSCIA
-    # ...
-    # COMPLETA QUI TUTTI I SIGNIFICATI FINO ALLA CARTA 33
-    # ...
+    # ... completa fino alla 33 come avevi nel file originale ...
 }
 
 # --------------------------------------------------------------------
@@ -149,15 +151,6 @@ with app.app_context():
 # FUNZIONI DI SUPPORTO
 # --------------------------------------------------------------------
 def build_prompt(spread_type, cards, intention):
-    """
-    Crea il testo che viene mandato al modello, usando:
-    - tipo di lettura
-    - carte estratte (nomi)
-    - intenzione dell'utente (se presente)
-    - significati guida dalla mappa
-    """
-
-    # Normalizziamo lo spread_type per essere robusti ("1_carta", "1-carta", ecc.)
     st = (spread_type or "").lower().replace("_", "-")
 
     if st in ("1-carta", "1 carta", "una-carta"):
@@ -203,12 +196,6 @@ def build_prompt(spread_type, cards, intention):
 
 
 def validate_and_consume_code(code_string):
-    """
-    Controlla che il Codice Lettura esista, sia attivo e con crediti disponibili.
-    Se ok, scala 1 credito e restituisce credits_left e credits_total.
-    Normalizza il codice rimuovendo tutti gli spazi/a-capo interni.
-    """
-    # Porta tutto in maiuscolo e rimuove TUTTI i caratteri di spazio (anche accapo) ovunque
     raw = (code_string or "").upper()
     clean_code = "".join(ch for ch in raw if not ch.isspace())
 
@@ -241,7 +228,6 @@ def validate_and_consume_code(code_string):
             "message": "Non ci sono più crediti disponibili per questo codice."
         }
 
-    # Se arrivi qui, il codice è valido e ha crediti
     code.use_credit()
     db.session.commit()
 
@@ -261,7 +247,7 @@ def generate_random_code(prefix="SOP-", length=10):
             return code
 
 # --------------------------------------------------------------------
-# ROUTE ADMIN PER GENERARE CODICI (SEMPLICE FORM: GET + POST)
+# ROUTE ADMIN PER GENERARE CODICI
 # --------------------------------------------------------------------
 @app.route("/admin/genera-codice", methods=["GET", "POST"])
 def admin_generate_code():
@@ -287,7 +273,6 @@ def admin_generate_code():
         """
         return render_template_string(html_form)
 
-    # POST: genera il codice
     credits_str = request.form.get("credits", "1")
     note = request.form.get("note", "").strip()
 
@@ -368,7 +353,7 @@ def genera_codice_da_woocommerce():
     if not isinstance(credits_total, int) or credits_total <= 0:
         return jsonify({"ok": False, "error": "CREDITS_INVALIDI"}), 400
 
-    order_id = data.get("order_id")  # opzionale
+    order_id = data.get("order_id")
     note = data.get("note") or ""
     if order_id:
         note = f"Generato da WooCommerce ordine #{order_id} - " + note
@@ -399,9 +384,8 @@ def admin_disabilita_codice():
     if secret != ADMIN_SECRET:
         return jsonify({"ok": False, "error": "UNAUTHORIZED"}), 401
 
-    code_id = data.get("id")
     try:
-        code_id = int(code_id)
+        code_id = int(data.get("id"))
     except (TypeError, ValueError):
         return jsonify({"ok": False, "error": "ID_NON_VALIDO"}), 400
 
@@ -476,34 +460,29 @@ def lista_codici():
     return html
 
 # --------------------------------------------------------------------
-# ENDPOINT PRINCIPALE USATO DAL SITO:
-#   POST /api/secret-of-power/interpretation
+# ENDPOINT STATUS E INTERPRETAZIONE
 # --------------------------------------------------------------------
 @app.route("/api/status")
 def status():
     return jsonify({"ok": True, "status": "online"})
 
+
 @app.route("/api/secret-of-power/interpretation", methods=["POST", "OPTIONS"])
 def interpretation():
-    # Risposta immediata al preflight CORS (OPTIONS)
     if request.method == "OPTIONS":
         return ("", 200)
 
     data = request.get_json(silent=True) or {}
 
-    # Supporto sia "spread_type" (nuovo) che "spreadType" (vecchio)
     spread_type = data.get("spread_type") or data.get("spreadType") or "1_carta"
-    cards_raw = data.get("cards", [])          # lista di stringhe O dict {position, name}
-    intention = data.get("intention")          # stringa o None
+    cards_raw = data.get("cards", [])
+    intention = data.get("intention")
     reading_code = (data.get("code") or "").strip()
 
-    # 1. Controllo e consumo del Codice Lettura
     credit_check = validate_and_consume_code(reading_code)
     if not credit_check.get("ok"):
-        # Codice non valido o senza crediti
         return jsonify(credit_check), 400
 
-    # 2. Normalizziamo le carte in una lista di NOMI (stringhe)
     normalized_cards = []
     for c in cards_raw:
         if isinstance(c, dict):
@@ -547,7 +526,6 @@ def interpretation():
         })
 
     except Exception as e:
-        # Log di servizio (lo vedi nei log di Render)
         print("Errore OpenAI:", e)
 
         fallback = (
@@ -564,27 +542,17 @@ def interpretation():
             "error": "OPENAI_ERROR"
         }), 200
 
-
-@app.route("/")
-def index():
-    return "API The Secret of Power – online"
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-from flask import request, jsonify
-import json
-
+# --------------------------------------------------------------------
+# ENDPOINT RIFORMULAZIONE INTENZIONE (CON OPTIONS)
+# --------------------------------------------------------------------
 @app.route("/api/secret-of-power/refine-intention", methods=["POST", "OPTIONS"])
 def refine_intention():
-    # Risposta immediata al preflight CORS (OPTIONS)
     if request.method == "OPTIONS":
         return ("", 200)
 
     data = request.get_json(silent=True) or {}
     raw_intention = (data.get("raw_intention") or "").strip()
 
-    # Validazione base
     if not raw_intention:
         return jsonify({
             "status": "error",
@@ -599,7 +567,7 @@ def refine_intention():
 
     try:
         completion = client.chat.completions.create(
-            model="gpt-4.1-mini",  # o il modello che stai usando per le letture
+            model="gpt-4.1-mini",
             messages=[
                 {"role": "system", "content": INTENTION_REFINER_SYSTEM_PROMPT},
                 {"role": "user", "content": raw_intention}
@@ -610,7 +578,6 @@ def refine_intention():
 
         content = completion.choices[0].message.content.strip()
 
-        # Proviamo a parsare come JSON
         refined = ""
         explanation = ""
         try:
@@ -618,7 +585,6 @@ def refine_intention():
             refined = (parsed.get("refined_intention") or "").strip()
             explanation = (parsed.get("explanation") or "").strip()
         except Exception:
-            # Se il modello non segue perfettamente il JSON, usiamo tutto il testo come intenzione
             refined = content
 
         if not refined:
@@ -640,3 +606,12 @@ def refine_intention():
             "status": "error",
             "message": "Si è verificato un errore durante la riformulazione dell’intenzione."
         }), 500
+
+
+@app.route("/")
+def index():
+    return "API The Secret of Power – online"
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
