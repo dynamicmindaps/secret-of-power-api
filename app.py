@@ -528,7 +528,7 @@ def interpretation():
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
             temperature=0.8,
-            max_tokens=700,
+            max_tokens=1200,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_content},
