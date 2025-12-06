@@ -575,8 +575,12 @@ if __name__ == "__main__":
 from flask import request, jsonify
 import json
 
-@app.route("/api/secret-of-power/refine-intention", methods=["POST"])
+@app.route("/api/secret-of-power/refine-intention", methods=["POST", "OPTIONS"])
 def refine_intention():
+    # Risposta immediata al preflight CORS (OPTIONS)
+    if request.method == "OPTIONS":
+        return ("", 200)
+
     data = request.get_json(silent=True) or {}
     raw_intention = (data.get("raw_intention") or "").strip()
 
