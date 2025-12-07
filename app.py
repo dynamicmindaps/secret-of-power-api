@@ -8,7 +8,6 @@ import string
 import json
 
 INTENTION_REFINER_SYSTEM_PROMPT = """
-INTENTION_REFINER_SYSTEM_PROMPT = """
 Sei il modulo di PREPARAZIONE INTENZIONE del sistema "The Secret of Power".
 
 Il tuo compito è prendere l'INTENZIONE GREZZA dell’utente e restituire
@@ -47,7 +46,6 @@ REGOLE FONDAMENTALI:
 
 Rispondi sempre e solo in italiano.
 """
-
 Restituisci SEMPRE la risposta in formato JSON:
 
 {
