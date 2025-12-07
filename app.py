@@ -7,6 +7,9 @@ import random
 import string
 import json
 
+# --------------------------------------------------------------------
+# PROMPT PER LA PREPARAZIONE DELL’INTENZIONE
+# --------------------------------------------------------------------
 INTENTION_REFINER_SYSTEM_PROMPT = """
 Sei il modulo di PREPARAZIONE INTENZIONE del sistema "The Secret of Power".
 
@@ -34,30 +37,22 @@ REGOLE FONDAMENTALI:
    - Mantieni un linguaggio naturale, umano, non spirituale.
    - Non rendere la frase più “positiva” o “evolutiva” del necessario.
 
-4. Output obbligatorio in JSON:
-{
-  "refined_intention": "...",
-  "explanation": "Spiega brevemente cosa hai corretto (max 1 frase)."
-}
-
-5. L'explanation deve descrivere cosa hai fatto sulla FORMA,
-   non sul contenuto (es: “Ho reso la frase più chiara e corretta”).
-   Mai dare interpretazioni, consigli, diagnosi o giudizi.
-
-Rispondi sempre e solo in italiano.
-"""
-Restituisci SEMPRE la risposta in formato JSON:
+4. Output obbligatorio in JSON con questa struttura:
 
 {
   "refined_intention": "...",
   "explanation": "..."
 }
 
-- "refined_intention" è la frase finale da usare come intenzione.
-- "explanation" spiega brevemente come l’hai riformulata (max 2 frasi).
-Rispondi sempre in italiano.
+   - "refined_intention" è la frase finale da usare come intenzione.
+   - "explanation" spiega brevemente cosa hai corretto sulla forma (max 2 frasi).
+
+Rispondi SEMPRE e solo in italiano e restituisci soltanto il JSON, senza testo aggiuntivo.
 """
 
+# --------------------------------------------------------------------
+# FLASK APP E DB
+# --------------------------------------------------------------------
 app = Flask(__name__)
 
 # Configurazione database per i Codici Lettura
@@ -208,7 +203,7 @@ def build_prompt(spread_type, cards, intention):
                 f"{meaning}\n"
             )
 
-        # Istruzioni finali generali
+    # Istruzioni finali generali
     parts.append(
         "\nUsa queste informazioni per restituire UNA SOLA interpretazione integrata, in italiano, "
         "organizzata in brevi paragrafi o punti chiari. "
@@ -217,7 +212,7 @@ def build_prompt(spread_type, cards, intention):
         "riflessione o di azione pratica."
     )
 
-    # Se è una lettura a 3 carte, chiediamo una sintesi molto più profonda e meno generica
+    # Se è una lettura a 3 carte, chiediamo una sintesi più profonda
     if st in ("3-carte", "3 carte", "tre-carte"):
         parts.append(
             "\nPer questa lettura a 3 carte, dopo aver accennato al significato di ciascuna carta, "
