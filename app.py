@@ -375,7 +375,32 @@ def admin_codici_json():
         })
 
     return jsonify({"ok": True, "codes": data})
+# --------------------------------------------------------------------
+# ENDPOINT ADMIN PER ELIMINARE I CODICI ESAURITI (2.1)
+# --------------------------------------------------------------------
+@app.route("/admin/elimina-codici-esauriti", methods=["POST"])
+def elimina_codici_esauriti():
+    secret = request.args.get("secret", "")
+    if secret != ADMIN_SECRET:
+        return jsonify({"ok": False, "error": "UNAUTHORIZED"}), 401
 
+    # Trova tutti i codici con crediti esauriti
+    exhausted_codes = ReadingCode.query.filter(
+        ReadingCode.credits_total <= ReadingCode.credits_used
+    ).all()
+
+    count = len(exhausted_codes)
+
+    # Cancella uno per uno
+    for c in exhausted_codes:
+        db.session.delete(c)
+    db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "deleted": count,
+        "message": f"Eliminati {count} codici esauriti."
+    })
 # --------------------------------------------------------------------
 # ENDPOINT PER GENERARE CODICI DA WOOCOMMERCE
 # --------------------------------------------------------------------
