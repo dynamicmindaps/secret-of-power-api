@@ -378,9 +378,10 @@ def admin_codici_json():
 # --------------------------------------------------------------------
 # ENDPOINT ADMIN PER ELIMINARE I CODICI ESAURITI (2.1)
 # --------------------------------------------------------------------
-@app.route("/admin/elimina-codici-esauriti", methods=["POST"])
+@app.route("/admin/elimina-codici-esauriti", methods=["GET", "POST"])
 def elimina_codici_esauriti():
-    secret = request.args.get("secret", "")
+    # il secret può arrivare sia via querystring che via form
+    secret = request.args.get("secret", "") or request.form.get("secret", "")
     if secret != ADMIN_SECRET:
         return jsonify({"ok": False, "error": "UNAUTHORIZED"}), 401
 
@@ -391,16 +392,39 @@ def elimina_codici_esauriti():
 
     count = len(exhausted_codes)
 
-    # Cancella uno per uno
     for c in exhausted_codes:
         db.session.delete(c)
     db.session.commit()
 
-    return jsonify({
-        "ok": True,
-        "deleted": count,
-        "message": f"Eliminati {count} codici esauriti."
-    })
+    # Risposta HTML semplice per l'admin
+    html = f"""
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Elimina codici esauriti</title>
+      <style>
+        body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; }}
+        a.button {{
+          display: inline-block;
+          padding: 6px 12px;
+          background: #1976d2;
+          color: #fff;
+          text-decoration: none;
+          border-radius: 4px;
+          font-size: 0.9em;
+        }}
+      </style>
+    </head>
+    <body>
+      <h2>Elimina codici esauriti</h2>
+      <p>Eliminati <strong>{count}</strong> codici con crediti esauriti.</p>
+      <p>
+        <a class="button" href="/admin/codici?secret={secret}">Torna alla lista codici</a>
+      </p>
+    </body>
+    </html>
+    """
+    return html
 # --------------------------------------------------------------------
 # ENDPOINT PER GENERARE CODICI DA WOOCOMMERCE
 # --------------------------------------------------------------------
