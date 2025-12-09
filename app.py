@@ -7,9 +7,6 @@ import random
 import string
 import json
 
-# --------------------------------------------------------------------
-# PROMPT PER LA PREPARAZIONE DELL’INTENZIONE
-# --------------------------------------------------------------------
 INTENTION_REFINER_SYSTEM_PROMPT = """
 Sei il modulo di PREPARAZIONE INTENZIONE del sistema "The Secret of Power".
 
@@ -34,25 +31,23 @@ REGOLE FONDAMENTALI:
    - Correggi grammatica e punteggiatura.
    - Rendi la frase più scorrevole e comprensibile.
    - Elimina ripetizioni inutili.
-   - Mantieni un linguaggio naturale, umano, non spirituale.
+   - Mantieni un linguaggio naturale, umano, non troppo “spirituale”.
    - Non rendere la frase più “positiva” o “evolutiva” del necessario.
 
-4. Output obbligatorio in JSON con questa struttura:
+4. Output obbligatorio in JSON:
 
 {
   "refined_intention": "...",
-  "explanation": "..."
+  "explanation": "Spiega brevemente cosa hai corretto (max 1–2 frasi)."
 }
 
-   - "refined_intention" è la frase finale da usare come intenzione.
-   - "explanation" spiega brevemente cosa hai corretto sulla forma (max 2 frasi).
+5. L'explanation deve descrivere cosa hai fatto sulla FORMA,
+   non sul contenuto (es: “Ho reso la frase più chiara e corretta”).
+   Mai dare interpretazioni, consigli, diagnosi o giudizi.
 
-Rispondi SEMPRE e solo in italiano e restituisci soltanto il JSON, senza testo aggiuntivo.
+Rispondi sempre e solo in italiano.
 """
 
-# --------------------------------------------------------------------
-# FLASK APP E DB
-# --------------------------------------------------------------------
 app = Flask(__name__)
 
 # Configurazione database per i Codici Lettura
@@ -203,7 +198,6 @@ def build_prompt(spread_type, cards, intention):
                 f"{meaning}\n"
             )
 
-    # Istruzioni finali generali
     parts.append(
         "\nUsa queste informazioni per restituire UNA SOLA interpretazione integrata, in italiano, "
         "organizzata in brevi paragrafi o punti chiari. "
@@ -212,7 +206,7 @@ def build_prompt(spread_type, cards, intention):
         "riflessione o di azione pratica."
     )
 
-    # Se è una lettura a 3 carte, chiediamo una sintesi più profonda
+    # Extra per lettura a 3 carte: combinazione più profonda
     if st in ("3-carte", "3 carte", "tre-carte"):
         parts.append(
             "\nPer questa lettura a 3 carte, dopo aver accennato al significato di ciascuna carta, "
@@ -273,6 +267,51 @@ def validate_and_consume_code(code_string):
         "ok": True,
         "credits_left": code.credits_left,
         "credits_total": code.credits_total
+    }
+
+
+def check_code_status(code_string):
+    """
+    Versione che CONTROLLA il codice senza consumare crediti.
+    Usata dalla SOP 2.0 per la pre-autorizzazione della riformulazione.
+    """
+    raw = (code_string or "").upper()
+    clean_code = "".join(ch for ch in raw if not ch.isspace())
+
+    if not clean_code:
+        return {
+            "ok": False,
+            "error": "CODICE_MANCANTE",
+            "message": "È necessario inserire un Codice Lettura."
+        }
+
+    code = ReadingCode.query.filter_by(code=clean_code).first()
+    if not code:
+        return {
+            "ok": False,
+            "error": "CODICE_NON_VALIDO",
+            "message": "Il Codice Lettura inserito non esiste."
+        }
+
+    if code.disabled:
+        return {
+            "ok": False,
+            "error": "CODICE_DISABILITATO",
+            "message": "Questo Codice Lettura è stato disabilitato."
+        }
+
+    if code.credits_left <= 0:
+        return {
+            "ok": False,
+            "error": "CREDITI_INSUFFICIENTI",
+            "message": "Non ci sono più crediti disponibili per questo codice."
+        }
+
+    return {
+        "ok": True,
+        "credits_left": code.credits_left,
+        "credits_total": code.credits_total,
+        "disabled": bool(code.disabled)
     }
 
 
@@ -375,56 +414,7 @@ def admin_codici_json():
         })
 
     return jsonify({"ok": True, "codes": data})
-# --------------------------------------------------------------------
-# ENDPOINT ADMIN PER ELIMINARE I CODICI ESAURITI (2.1)
-# --------------------------------------------------------------------
-@app.route("/admin/elimina-codici-esauriti", methods=["GET", "POST"])
-def elimina_codici_esauriti():
-    # il secret può arrivare sia via querystring che via form
-    secret = request.args.get("secret", "") or request.form.get("secret", "")
-    if secret != ADMIN_SECRET:
-        return jsonify({"ok": False, "error": "UNAUTHORIZED"}), 401
 
-    # Trova tutti i codici con crediti esauriti
-    exhausted_codes = ReadingCode.query.filter(
-        ReadingCode.credits_total <= ReadingCode.credits_used
-    ).all()
-
-    count = len(exhausted_codes)
-
-    for c in exhausted_codes:
-        db.session.delete(c)
-    db.session.commit()
-
-    # Risposta HTML semplice per l'admin
-    html = f"""
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>Elimina codici esauriti</title>
-      <style>
-        body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; }}
-        a.button {{
-          display: inline-block;
-          padding: 6px 12px;
-          background: #1976d2;
-          color: #fff;
-          text-decoration: none;
-          border-radius: 4px;
-          font-size: 0.9em;
-        }}
-      </style>
-    </head>
-    <body>
-      <h2>Elimina codici esauriti</h2>
-      <p>Eliminati <strong>{count}</strong> codici con crediti esauriti.</p>
-      <p>
-        <a class="button" href="/admin/codici?secret={secret}">Torna alla lista codici</a>
-      </p>
-    </body>
-    </html>
-    """
-    return html
 # --------------------------------------------------------------------
 # ENDPOINT PER GENERARE CODICI DA WOOCOMMERCE
 # --------------------------------------------------------------------
@@ -547,11 +537,27 @@ def lista_codici():
     return html
 
 # --------------------------------------------------------------------
-# ENDPOINT STATUS E INTERPRETAZIONE
+# ENDPOINT STATUS / CHECK-CODE / INTERPRETAZIONE
 # --------------------------------------------------------------------
 @app.route("/api/status")
 def status():
     return jsonify({"ok": True, "status": "online"})
+
+
+@app.route("/api/secret-of-power/check-code", methods=["POST", "OPTIONS"])
+def api_check_code():
+    """
+    Controlla che il Codice Lettura esista, non sia disabilitato e abbia ancora crediti.
+    NON consuma crediti. Pensato per SOP 2.0 (pre-autorizzazione riformulazione).
+    """
+    if request.method == "OPTIONS":
+        return ("", 200)
+
+    data = request.get_json(silent=True) or {}
+    code_str = data.get("code") or data.get("reading_code") or ""
+    result = check_code_status(code_str)
+    http_status = 200 if result.get("ok") else 400
+    return jsonify(result), http_status
 
 
 @app.route("/api/secret-of-power/interpretation", methods=["POST", "OPTIONS"])
