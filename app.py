@@ -608,8 +608,73 @@ def lista_codici():
     </html>
     """
     return html
-
 # --------------------------------------------------------------------
+# ENDPOINT ADMIN: ELIMINA CODICI
+# --------------------------------------------------------------------
+@app.route("/admin/elimina-codice", methods=["POST"])
+def admin_elimina_codice():
+    """
+    Elimina definitivamente UN singolo codice (per ID).
+    Usato dal pulsante "Elimina" accanto al codice nella tabella WP.
+    """
+    data = request.get_json(silent=True) or {}
+    secret = data.get("secret")
+
+    if secret != ADMIN_SECRET:
+        return jsonify({"ok": False, "error": "UNAUTHORIZED"}), 401
+
+    try:
+        code_id = int(data.get("id"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "ID_NON_VALIDO"}), 400
+
+    code = ReadingCode.query.get(code_id)
+    if not code:
+        return jsonify({"ok": False, "error": "CODICE_NON_TROVATO"}), 404
+
+    deleted_id = code.id
+    deleted_code = code.code
+
+    db.session.delete(code)
+    db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "deleted_id": deleted_id,
+        "deleted_code": deleted_code
+    })
+
+
+@app.route("/admin/elimina-codici-esauriti", methods=["POST"])
+def admin_elimina_codici_esauriti():
+    """
+    Elimina TUTTI i codici con crediti rimasti <= 0.
+    Usato dal pulsante "Cancella codici esauriti" nella pagina WP.
+    """
+    data = request.get_json(silent=True) or {}
+    secret = data.get("secret")
+
+    if secret != ADMIN_SECRET:
+        return jsonify({"ok": False, "error": "UNAUTHORIZED"}), 401
+
+    codes = ReadingCode.query.all()
+    deleted = []
+
+    for c in codes:
+        if c.credits_left <= 0:
+            deleted.append({
+                "id": c.id,
+                "code": c.code
+            })
+            db.session.delete(c)
+
+    db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "deleted": deleted,
+        "deleted_count": len(deleted)
+    })# --------------------------------------------------------------------
 # ENDPOINT STATUS / CHECK-CODE / INTERPRETAZIONE
 # --------------------------------------------------------------------
 @app.route("/api/status")
