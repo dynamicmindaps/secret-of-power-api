@@ -273,7 +273,8 @@ def validate_and_consume_code(code_string):
 def check_code_status(code_string):
     """
     Versione che CONTROLLA il codice senza consumare crediti.
-    Usata dalla SOP 2.0 per la pre-autorizzazione della riformulazione.
+    Usata dalla SOP 2.0 per la pre-autorizzazione della riformulazione
+    e per il semaforo verde/rosso nel frontend.
     """
     raw = (code_string or "").upper()
     clean_code = "".join(ch for ch in raw if not ch.isspace())
@@ -548,7 +549,8 @@ def status():
 def api_check_code():
     """
     Controlla che il Codice Lettura esista, non sia disabilitato e abbia ancora crediti.
-    NON consuma crediti. Pensato per SOP 2.0 (pre-autorizzazione riformulazione).
+    NON consuma crediti. Pensato per SOP 2.0 (pre-autorizzazione riformulazione)
+    e per il semaforo verde/rosso sotto al campo codice nel frontend.
     """
     if request.method == "OPTIONS":
         return ("", 200)
@@ -556,6 +558,10 @@ def api_check_code():
     data = request.get_json(silent=True) or {}
     code_str = data.get("code") or data.get("reading_code") or ""
     result = check_code_status(code_str)
+
+    # Aggiungiamo anche uno stato testuale per il frontend
+    result["status"] = "ok" if result.get("ok") else "error"
+
     http_status = 200 if result.get("ok") else 400
     return jsonify(result), http_status
 
@@ -636,7 +642,7 @@ def interpretation():
         }), 200
 
 # --------------------------------------------------------------------
-# ENDPOINT RIFORMULAZIONE INTENZIONE (CON OPTIONS)
+# ENDPOINT RIFORMULAZIONE INTENZIONE (CON VALIDAZIONE CODICE)
 # --------------------------------------------------------------------
 @app.route("/api/secret-of-power/refine-intention", methods=["POST", "OPTIONS"])
 def refine_intention():
@@ -645,7 +651,18 @@ def refine_intention():
 
     data = request.get_json(silent=True) or {}
     raw_intention = (data.get("raw_intention") or "").strip()
+    code_str = (data.get("code") or data.get("reading_code") or "").strip()
 
+    # 1) Controllo codice: per usare la riformulazione deve essere valido
+    code_status = check_code_status(code_str)
+    if not code_status.get("ok"):
+        return jsonify({
+            "status": "error",
+            "code_error": code_status.get("error"),
+            "message": code_status.get("message", "Codice non valido o senza crediti.")
+        }), 400
+
+    # 2) Controllo testo intenzione
     if not raw_intention:
         return jsonify({
             "status": "error",
@@ -690,7 +707,12 @@ def refine_intention():
             "status": "ok",
             "refined_intention": refined,
             "explanation": explanation,
-            "warnings": []
+            "warnings": [],
+            "code_status": {
+                "ok": True,
+                "credits_left": code_status.get("credits_left"),
+                "credits_total": code_status.get("credits_total")
+            }
         })
 
     except Exception as e:
