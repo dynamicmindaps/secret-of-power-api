@@ -477,33 +477,6 @@ def admin_disabilita_codice():
     return jsonify({"ok": True, "id": code.id})
 
 
-
-@app.route("/admin/elimina-codici-esauriti", methods=["POST"])
-def admin_elimina_codici_esauriti():
-    """
-    Elimina TUTTI i codici con crediti esauriti (credits_left <= 0).
-    Utile da collegare al bottone 'Cancella codici esauriti' lato WordPress.
-    """
-    data = request.get_json(silent=True) or {}
-    secret = data.get("secret")
-    if secret != ADMIN_SECRET:
-        return jsonify({"ok": False, "error": "UNAUTHORIZED"}), 401
-
-    codes = ReadingCode.query.all()
-    deleted = 0
-
-    for c in codes:
-        if c.credits_left <= 0:
-            db.session.delete(c)
-            deleted += 1
-
-    if deleted > 0:
-        db.session.commit()
-
-    return jsonify({
-        "ok": True,
-        "deleted": deleted
-    })
 # --------------------------------------------------------------------
 # PAGINA ADMIN PER ELENCO CODICI
 # --------------------------------------------------------------------
