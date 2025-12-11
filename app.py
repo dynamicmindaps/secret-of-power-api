@@ -476,6 +476,78 @@ def admin_disabilita_codice():
 
     return jsonify({"ok": True, "id": code.id})
 
+@app.route("/admin/elimina-codice", methods=["POST"])
+def admin_elimina_codice():
+    """
+    Elimina UN singolo codice lettura dal database.
+    Puoi passare:
+    - id  (es: {"secret": "...", "id": 12})
+    - oppure code  (es: {"secret": "...", "code": "SOP-ABC123..."})
+    """
+    data = request.get_json(silent=True) or {}
+    secret = data.get("secret")
+    if secret != ADMIN_SECRET:
+        return jsonify({"ok": False, "error": "UNAUTHORIZED"}), 401
+
+    code_obj = None
+
+    # Prova prima con l'ID
+    code_id = data.get("id")
+    if code_id is not None:
+        try:
+            code_obj = ReadingCode.query.get(int(code_id))
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "error": "ID_NON_VALIDO"}), 400
+
+    # Se non trovato per ID, prova con il codice testuale
+    if code_obj is None:
+        code_str = (data.get("code") or "").strip().upper()
+        if not code_str:
+            return jsonify({"ok": False, "error": "PARAMETRI_MANCANTI"}), 400
+        code_obj = ReadingCode.query.filter_by(code=code_str).first()
+
+    if not code_obj:
+        return jsonify({"ok": False, "error": "CODICE_NON_TROVATO"}), 404
+
+    deleted_id = code_obj.id
+    deleted_code = code_obj.code
+
+    db.session.delete(code_obj)
+    db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "deleted_id": deleted_id,
+        "deleted_code": deleted_code
+    })
+
+
+@app.route("/admin/elimina-codici-esauriti", methods=["POST"])
+def admin_elimina_codici_esauriti():
+    """
+    Elimina TUTTI i codici con crediti esauriti (credits_left <= 0).
+    Utile da collegare al bottone 'Cancella codici esauriti' lato WordPress.
+    """
+    data = request.get_json(silent=True) or {}
+    secret = data.get("secret")
+    if secret != ADMIN_SECRET:
+        return jsonify({"ok": False, "error": "UNAUTHORIZED"}), 401
+
+    codes = ReadingCode.query.all()
+    deleted = 0
+
+    for c in codes:
+        if c.credits_left <= 0:
+            db.session.delete(c)
+            deleted += 1
+
+    if deleted > 0:
+        db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "deleted": deleted
+    })
 # --------------------------------------------------------------------
 # PAGINA ADMIN PER ELENCO CODICI
 # --------------------------------------------------------------------
